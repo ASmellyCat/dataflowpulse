@@ -1,0 +1,42 @@
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: #fdfdfd;
+    color: #1f2937;
+  }
+  
+  .logo {
+    height: 40px;
+    margin: 16px;
+    background: linear-gradient(to right, #ec4899, #34d399); // hot pink + mint green
+    text-align: center;
+    color: white;
+    line-height: 40px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 12px;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .ant-menu-item {
+    background-color: #804d6a;
+    border-color: #a248ec;
+    color: rgb(54, 41, 41);
+    border-radius: 10px !important;
+    margin-bottom: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+  }
+  .ant-menu-item-selected {
+    background-color: #94145e !important; // hot pink
+    color: white !important;
+  }
+  
+  .ant-btn-primary {
+    background-color: #ec4899;
+    border-color: #ec4899;
+    font-weight: bold;
+    font-family: 'Inter', sans-serif;
+    border-radius: 10px;
+  }
+  
