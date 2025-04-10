@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Env
+.venv/
+.env
+*.env
+
+# VSCode
+.vscode/
+
+# System
+.DS_Store
+
+# Docker shared volume
+/tmp/
