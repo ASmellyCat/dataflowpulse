@@ -1,46 +1,95 @@
-# worker/processor.py
-
-import os
 import pandas as pd
-from pymongo import MongoClient
+import json
 import redis
+from pymongo import MongoClient
 
-# Read config from environment
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
-MONGO_HOST = os.environ.get("MONGO_HOST", "localhost")
-MONGO_PORT = int(os.environ.get("MONGO_PORT", 27017))
+# Redis client
+redis_client = redis.Redis(host="redis", port=6379, decode_responses=True)
 
-# Initialize Redis and MongoDB clients
-redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-mongo_client = MongoClient(f"mongodb://{MONGO_HOST}:{MONGO_PORT}/")
+# Mongo client
+mongo_client = MongoClient("mongodb://mongo:27017")
 db = mongo_client["dataflowpulse"]
-results_collection = db["task_results"]
+collection = db["task_results"]
 
-def update_status(task_id: str, status: str):
-    redis_client.set(f"task:{task_id}:status", status)
 
 def process_task(task):
     task_id = task["task_id"]
     file_path = task["file_path"]
+    task_type = task["task_type"]
+
+    # Set state as running
+    redis_client.set(f"task:{task_id}:status", "running")
 
     try:
-        update_status(task_id, "running")
-        print(f"[Processor] Processing task {task_id}...", flush=True)
+        if task_type == "csv":
+            result = process_csv(file_path)
+        elif task_type == "log":
+            result = process_log(file_path)
+        elif task_type == "json":
+            result = process_json(file_path)
+        else:
+            raise ValueError(f"Unsupported task type: {task_type}")
 
-        df = pd.read_csv(file_path)
-        print(f"[Processor] Columns: {list(df.columns)}", flush=True)
-        print(f"[Processor] Head:\n{df.head()}", flush=True)
+        # save to MongoDB
+        collection.insert_one({"task_id": task_id, "result": result})
 
-        result = {
-            "task_id": task_id,
-            "columns": list(df.columns),
-            "preview": df.head().to_dict(orient="records"),
-        }
-
-        results_collection.insert_one(result)
-        update_status(task_id, "success")
-
+        # Update Redis states
+        redis_client.set(f"task:{task_id}:status", "success")
     except Exception as e:
-        update_status(task_id, "failed")
-        print(f"[Processor] Error: {e}", flush=True)
+        print(f"[Processor] Error: {e}")
+        redis_client.set(f"task:{task_id}:status", "failed")
+
+
+def process_csv(file_path):
+    print(f"[Processor] Processing CSV: {file_path}")
+    df = pd.read_csv(file_path)
+
+    result = {
+        "row_count": len(df),
+        "columns": list(df.columns),
+        "null_rate": df.isnull().mean().to_dict(),
+        "average_numeric": df.select_dtypes(include='number').mean().to_dict()
+    }
+
+    return result
+
+
+def process_log(file_path):
+    print(f"[Processor] Processing LOG: {file_path}")
+    status_counts = {}
+    ip_counts = {}
+
+    with open(file_path, "r") as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) < 9:
+                continue
+            ip = parts[0]
+            status = parts[8]
+
+            ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+    return {
+        "ip_counts": ip_counts,
+        "status_counts": status_counts
+    }
+
+
+def process_json(file_path):
+    print(f"[Processor] Processing JSON: {file_path}")
+    with open(file_path, "r") as f:
+        data = json.load(f)
+
+    user_sessions = {}
+    for entry in data:
+        user_id = entry.get("user_id")
+        session = entry.get("session")
+
+        if user_id not in user_sessions:
+            user_sessions[user_id] = {"session_count": 0, "actions": []}
+
+        user_sessions[user_id]["session_count"] += 1
+        user_sessions[user_id]["actions"].extend(entry.get("actions", []))
+
+    return user_sessions

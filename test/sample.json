@@ -1,0 +1,15 @@
+[
+  {
+    "user_id": "001",
+    "session": "morning",
+    "actions": ["login", "view", "logout"],
+    "timestamp": "2025-04-10T08:00:00Z"
+  },
+  {
+    "user_id": "002",
+    "session": "afternoon",
+    "actions": ["login", "view"],
+    "timestamp": "2025-04-10T14:00:00Z"
+  }
+]
+

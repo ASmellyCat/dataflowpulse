@@ -1,11 +1,8 @@
-# worker/consumer.py
-
 print("🚀 CONSUMER STARTED 🚀", flush=True)
 
 from kafka import KafkaConsumer
 import json
 from processor import process_task
-import time
 
 try:
     consumer = KafkaConsumer(
@@ -20,10 +17,8 @@ try:
 
     for msg in consumer:
         task = msg.value
-        print(f"[Consumer] Received task: {task}")
-        task_id = task['task_id']
-        file_path = task['file_path']
+        print(f"[Consumer] Received task: {task}", flush=True)
         process_task(task)
 
 except Exception as e:
-    print(f"[Consumer] ERROR: {e}")
+    print(f"[Consumer] ERROR: {e}", flush=True)
