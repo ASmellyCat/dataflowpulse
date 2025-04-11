@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Drawer,
-  Tabs,
-  Descriptions,
-  Spin,
-  Typography,
-  Table,
-} from 'antd';
+import { Drawer, Tabs, Descriptions, Spin, Typography, Table } from 'antd';
 import axios from 'axios';
 
 const { TabPane } = Tabs;
@@ -18,31 +11,9 @@ interface TaskDetailDrawerProps {
   visible: boolean;
 }
 
-type CsvResult = {
-  type: 'csv';
-  data: Record<string, any>[];
-};
-
-type LogResult = {
-  type: 'log';
-  status_counts: Record<string, number>;
-  ip_counts: Record<string, number>;
-};
-
-type JsonResult = {
-  type: 'json';
-  sessions: {
-    user_id: string;
-    action_count: number;
-    actions: any[];
-  }[];
-};
-
-type TaskResult = CsvResult | LogResult | JsonResult | null;
-
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({ taskId, onClose, visible }) => {
   const [status, setStatus] = useState<string | null>(null);
-  const [result, setResult] = useState<TaskResult>(null);
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,83 +21,113 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({ taskId, onClose, vi
       setLoading(true);
       Promise.all([
         axios.get(`http://localhost:8000/task/${taskId}/status`),
-        axios.get(`http://localhost:8000/task/${taskId}/result`),
+        axios.get(`http://localhost:8000/task/${taskId}/result`)
       ])
         .then(([statusRes, resultRes]) => {
           setStatus(statusRes.data.status);
           setResult(resultRes.data.result);
         })
-        .catch((err) => {
+        .catch(err => {
           console.error('Error loading task details', err);
         })
         .finally(() => setLoading(false));
     }
   }, [taskId]);
 
-  const renderStructuredTab = () => {
-    if (!result || !('type' in result)) {
-      return <Text type="secondary">No structured result available.</Text>;
+  const renderStructuredView = () => {
+    if (!result || !result.type) {
+      return <Text type="secondary">No structured data available.</Text>;
     }
 
     switch (result.type) {
-      case 'csv':
+      case 'csv': {
+        const rows = result.summary;
+        if (!Array.isArray(rows) || rows.length === 0) {
+          return <Text type="secondary">No CSV summary data found.</Text>;
+        }
+
+        const columns = Object.keys(rows[0]).map((key) => ({
+          title: key,
+          dataIndex: key,
+          key,
+        }));
+
         return (
           <Table
             size="small"
-            dataSource={result.data}
-            columns={
-              result.data[0]
-                ? Object.keys(result.data[0]).map((key) => ({
-                    title: key,
-                    dataIndex: key,
-                    key,
-                  }))
-                : []
-            }
-            pagination={{ pageSize: 5 }}
+            dataSource={rows}
+            columns={columns}
+            pagination={false}
             scroll={{ x: true }}
+            rowKey={(_, idx) => `csv-${idx}`}
           />
         );
+      }
 
-      case 'log':
-        return (
-          <Descriptions title="Log Aggregation" bordered size="small" column={1}>
-            {Object.entries(result.status_counts).map(([code, count]) => (
-              <Descriptions.Item key={`status-${code}`} label={`Status ${code}`}>
-                {count}
-              </Descriptions.Item>
-            ))}
-            {Object.entries(result.ip_counts).map(([ip, count]) => (
-              <Descriptions.Item key={`ip-${ip}`} label={`IP ${ip}`}>
-                {count}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
-        );
+      case 'log': {
+        const statusData = Array.isArray(result.status_counts)
+          ? result.status_counts
+          : Object.entries(result.status_counts || {}).map(([status, count]) => ({ status, count }));
 
-      case 'json':
+        const ipData = Array.isArray(result.ip_counts)
+          ? result.ip_counts
+          : Object.entries(result.ip_counts || {}).map(([ip, count]) => ({ ip, count }));
+
         return (
-          <div style={{ maxHeight: 400, overflowY: 'auto', fontFamily: 'monospace' }}>
-            {result.sessions.map((session, idx) => (
-              <div key={idx} style={{ marginBottom: 12 }}>
-                <Text strong>User: {session.user_id}</Text>
-                <pre
-                  style={{
-                    background: '#f6f8fa',
-                    padding: 10,
-                    borderRadius: 6,
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {JSON.stringify(session, null, 2)}
-                </pre>
-              </div>
-            ))}
-          </div>
+          <>
+            <Typography.Title level={5}>Status Code Counts</Typography.Title>
+            <Table
+              size="small"
+              dataSource={statusData}
+              columns={[
+                { title: 'Status', dataIndex: 'status', key: 'status' },
+                { title: 'Count', dataIndex: 'count', key: 'count' },
+              ]}
+              pagination={false}
+              rowKey={(_, idx) => `status-${idx}`}
+              style={{ marginBottom: 16 }}
+            />
+
+            <Typography.Title level={5}>IP Address Counts</Typography.Title>
+            <Table
+              size="small"
+              dataSource={ipData}
+              columns={[
+                { title: 'IP', dataIndex: 'ip', key: 'ip' },
+                { title: 'Count', dataIndex: 'count', key: 'count' },
+              ]}
+              pagination={false}
+              rowKey={(_, idx) => `ip-${idx}`}
+            />
+          </>
         );
+      }
+
+      case 'json': {
+        const sessions = result.sessions || [];
+
+        return (
+          <Table
+            size="small"
+            dataSource={sessions}
+            columns={[
+              { title: 'User ID', dataIndex: 'user_id', key: 'user_id' },
+              { title: 'Action Count', dataIndex: 'action_count', key: 'action_count' },
+              {
+                title: 'Actions',
+                dataIndex: 'actions',
+                key: 'actions',
+                render: (actions: any[]) => Array.isArray(actions) ? actions.join(', ') : '-'
+              }
+            ]}
+            pagination={{ pageSize: 5 }}
+            rowKey={(_, idx) => `session-${idx}`}
+          />
+        );
+      }
 
       default:
-        return <Text type="secondary">Unsupported result type.</Text>;
+        return <Text type="secondary">Unsupported result type: {result.type}</Text>;
     }
   };
 
@@ -146,37 +147,27 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({ taskId, onClose, vi
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="Task ID">{taskId}</Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Text
-                  type={
-                    status === 'success'
-                      ? 'success'
-                      : status === 'failed'
-                      ? 'danger'
-                      : 'warning'
-                  }
-                >
+                <Text type={status === 'success' ? 'success' : status === 'failed' ? 'danger' : 'warning'}>
                   {status?.toUpperCase()}
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="Result Type">
-                {result && 'type' in result ? result.type : 'N/A'}
+                {result?.type || 'Unknown'}
               </Descriptions.Item>
             </Descriptions>
           </TabPane>
 
-          <TabPane tab="Structured View" key="structured">
-            {renderStructuredTab()}
+          <TabPane tab="Structured" key="structured">
+            {renderStructuredView()}
           </TabPane>
 
-          <TabPane tab="Raw JSON" key="raw">
-            <pre
-              style={{
-                backgroundColor: '#f0f2f5',
-                padding: 12,
-                borderRadius: 8,
-                overflowX: 'auto',
-              }}
-            >
+          <TabPane tab="Raw JSON" key="json">
+            <pre style={{
+              backgroundColor: '#f0f2f5',
+              padding: 12,
+              borderRadius: 8,
+              overflowX: 'auto'
+            }}>
               {JSON.stringify(result, null, 2)}
             </pre>
           </TabPane>

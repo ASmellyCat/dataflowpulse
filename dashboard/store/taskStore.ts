@@ -14,7 +14,8 @@ type TaskStore = {
 };
 
 export const useTaskStore = create<TaskStore>((set, get) => {
-  let interval: NodeJS.Timeout | null = null;
+  let interval: number | null = null;
+
 
   return {
     tasks: [],

@@ -1,37 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Tag, Typography, Spin } from 'antd';
-import axios from 'axios';
 import TaskDetailDrawer from './TaskDetailDrawer';
+import { useTaskStore } from '../../store/taskStore'; // 根据你的路径修改
 
 const { Title } = Typography;
 
-interface TaskItem {
-  task_id: string;
-  status: string;
-}
-
 const TaskList: React.FC = () => {
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const { tasks, startPolling, fetchTasks } = useTaskStore();
   const [loading, setLoading] = useState(true);
-  const [selectedTask, setSelectedTask] = useState<string | null>(null); 
+  const [selectedTask, setSelectedTask] = useState<string | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchTasks();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchTasks = async () => {
-    try {
-      const res = await axios.get('http://127.0.0.1:8000/metrics');
-      console.log('Fetched metrics:', res.data);
-      setTasks(res.data.recent_tasks || []);
-      setLoading(false);
-    } catch (e) {
-      console.error('Failed to fetch tasks');
-    }
-  };
+    fetchTasks().finally(() => setLoading(false));
+    startPolling();
+  }, [fetchTasks, startPolling]);
 
   const columns = [
     {
@@ -61,12 +43,10 @@ const TaskList: React.FC = () => {
           columns={columns}
           rowKey="task_id"
           onRow={(record) => ({
-            onClick: () => setSelectedTask(record.task_id), 
+            onClick: () => setSelectedTask(record.task_id),
           })}
         />
       )}
-
-
       <TaskDetailDrawer
         taskId={selectedTask}
         visible={!!selectedTask}
